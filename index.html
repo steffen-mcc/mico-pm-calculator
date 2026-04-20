@@ -379,11 +379,10 @@ html, body {
     <button class="nav-tab" id="tab-history" onclick="switchTab('history')">History</button>
     <button class="nav-tab" id="tab-admin"   onclick="switchTab('admin')">Admin</button>
   </div>
-  <div class="nav-right">
-    <button class="btn btn-gold btn-sm no-print" onclick="newQuote()" style="margin-right:14px;">＋ New Quote</button>
+  <div class="nav-right" style="display:flex;align-items:center;gap:10px;">
     <div class="conn-indicator" id="conn-indicator"><span class="conn-dot"></span><span class="conn-lbl">Connecting…</span></div>
-    <span id="nav-user-email" style="font-size:11px;color:rgba(255,255,255,.5);margin-left:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button onclick="micoSignOut()" style="margin-left:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.75);font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;letter-spacing:.2px;">Sign Out</button>
+    <span id="nav-user-email" style="font-size:11px;color:rgba(255,255,255,.5);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button onclick="micoSignOut()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.75);font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;letter-spacing:.2px;">Sign Out</button>
   </div>
 </nav>
 
@@ -393,7 +392,10 @@ html, body {
 
   <!-- Customer Info -->
   <div class="card no-print" style="margin-bottom:22px; border-top:4px solid var(--navy);">
-    <div class="section-title">Customer Information</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      <div class="section-title" style="margin-bottom:0;flex:1;">Customer Information</div>
+      <button class="btn btn-gold btn-sm no-print" onclick="newQuote()">＋ New Quote</button>
+    </div>
     <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;">
       <div class="form-group">
         <label>Customer / Account Name</label>
@@ -438,7 +440,6 @@ html, body {
       <div style="display:flex;align-items:center;gap:8px;" class="no-print">
         <button class="btn btn-charcoal btn-sm" onclick="document.getElementById('import-file-input').click()">📥 Import</button>
         <button class="btn btn-charcoal btn-sm" onclick="addRow()">＋ Add Equipment</button>
-        <button class="btn btn-charcoal btn-sm" onclick="saveQuote()">💾 Save Quote</button>
         <button class="btn-danger-link" onclick="clearAll()">Clear all</button>
       </div>
     </div>
@@ -484,7 +485,10 @@ html, body {
         Mat. markup <span style="color:var(--gray-600);font-weight:600;"><span id="disp-mu">30</span>%</span> &nbsp;·&nbsp;
         Misc <span style="color:var(--gray-600);font-weight:600;">$<span id="disp-misc">10</span>/unit</span>
       </div>
-      <div style="font-size:12px;color:var(--green);" id="calc-save-status"></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:12px;color:var(--green);" id="calc-save-status"></div>
+        <button class="btn btn-gold btn-sm no-print" onclick="saveQuote()">Save Quote</button>
+      </div>
     </div>
   </div>
 
@@ -507,7 +511,7 @@ html, body {
       <div style="text-align:right;">
         <div style="font-size:18px;font-weight:800;color:var(--navy);">MICO <span style="color:var(--accent);">COOLING</span></div>
         <div style="font-size:12px;color:var(--gray-400);margin-top:3px;">Commercial HVAC · Refrigeration · Cookline</div>
-        <div style="font-size:12px;color:var(--gray-400);">steffen@micocooling.com</div>
+        <div style="font-size:12px;color:var(--gray-400);">info@micocooling.com</div>
       </div>
     </div>
   </div>
@@ -770,7 +774,7 @@ const DEFAULTS = {
       { id:null, type:'WARMER',        hours:0.75, matCost:50  },
     ]
   },
-  calc: { custName:'', notes:'', date: new Date().toISOString().slice(0,10), freq:4, rows:[] }
+  calc: { id:null, custName:'', notes:'', date: new Date().toISOString().slice(0,10), freq:4, rows:[] }
 };
 
 let S = deepClone(DEFAULTS);
@@ -842,18 +846,59 @@ async function deleteEqTypeFromDB(id) {
 // ============================================================
 // SUPABASE — QUOTES
 // ============================================================
-async function saveQuoteToDB() {
-  if (!S.calc.custName.trim()) { toast('Add a customer name before saving', 'info'); return; }
+async function saveQuoteToDB(silent=false) {
+  if (!S.calc.custName.trim()) {
+    if (!silent) toast('Add a customer name before saving', 'info');
+    return;
+  }
+  // Assign a permanent ID on first save — reused on every subsequent upsert
+  if (!S.calc.id) { S.calc.id = crypto.randomUUID(); saveCalcLocal(); }
   const t = calcTotals();
-  const { error } = await sb.from('pm_quotes').insert({
-    customer_name: S.calc.custName, customer_address: S.calc.notes || '',
-    proposal_date: S.calc.date || null, frequency: +S.calc.freq,
-    equipment_rows: S.calc.rows, price_per_pm: t.ppm, annual_total: t.annual
+  const { error } = await sb.from('pm_quotes').upsert({
+    id: S.calc.id,
+    customer_name: S.calc.custName,
+    customer_address: S.calc.notes || '',
+    proposal_date: S.calc.date || null,
+    frequency: +S.calc.freq,
+    equipment_rows: S.calc.rows,
+    price_per_pm: t.ppm,
+    annual_total: t.annual,
+    updated_at: new Date().toISOString()
   });
-  if (error) { toast('Error saving quote: ' + error.message, 'error'); return; }
-  toast('Quote saved for ' + S.calc.custName, 'success');
-  setTxt('calc-save-status', 'Saved ✓');
-  setTimeout(() => setTxt('calc-save-status',''), 3000);
+  if (error) {
+    if (!silent) toast('Error saving quote: ' + error.message, 'error');
+    setAutoSaveStatus('err');
+    return;
+  }
+  if (!silent) toast('Quote saved for ' + S.calc.custName, 'success');
+  setAutoSaveStatus('ok');
+}
+
+// ── AUTO-SAVE ─────────────────────────────────────────────────────────────────
+let _autoSaveTimer = null;
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  setAutoSaveStatus('pending');
+  _autoSaveTimer = setTimeout(autoSaveToCloud, 4000);
+}
+async function autoSaveToCloud() {
+  if (!S.calc.custName.trim()) return;  // don't create records for blank quotes
+  await saveQuoteToDB(true);            // silent — no toast on auto-save
+}
+function setAutoSaveStatus(state) {
+  const el = document.getElementById('calc-save-status');
+  if (!el) return;
+  if (state === 'pending') {
+    el.style.color = 'rgba(255,255,255,.45)';
+    el.textContent = 'saving…';
+  } else if (state === 'ok') {
+    el.style.color = '#22c55e';
+    el.textContent = 'saved ✓';
+    setTimeout(() => { el.textContent = ''; }, 3000);
+  } else if (state === 'err') {
+    el.style.color = '#f87171';
+    el.textContent = 'not saved';
+  }
 }
 
 async function loadHistory() {
@@ -875,6 +920,7 @@ async function deleteQuote(id) {
 }
 
 function loadQuoteIntoCalc(q) {
+  S.calc.id       = q.id;                // track this record for future upserts
   S.calc.custName = q.customer_name || '';
   S.calc.notes    = q.customer_address || '';
   S.calc.date     = q.proposal_date || new Date().toISOString().slice(0,10);
@@ -1129,13 +1175,14 @@ function updateCustomer() {
   S.calc.notes    = document.getElementById('f-notes').value;
   S.calc.date     = document.getElementById('f-date').value;
   saveCalcLocal();
+  scheduleAutoSave();
 }
-function updateFrequency() { S.calc.freq=+document.getElementById('f-freq').value||1; saveCalcLocal(); renderCalcBar(); }
-function addRow() { S.calc.rows.push({ category:'', site:'', mfr:'', etype:'', model:'', serial:'', loc:'' }); saveCalcLocal(); renderEquipTable(); renderCalcBar(); }
-function delRow(i) { S.calc.rows.splice(i,1); saveCalcLocal(); renderEquipTable(); renderCalcBar(); }
-function onCatChange(i,val) { S.calc.rows[i].category=val; saveCalcLocal(); renderEquipTable(); renderCalcBar(); }
-function onTxt(i,field,val) { S.calc.rows[i][field]=val; saveCalcLocal(); }
-function clearAll() { if(!confirm('Clear all equipment rows?')) return; S.calc.rows=[]; saveCalcLocal(); renderEquipTable(); renderCalcBar(); }
+function updateFrequency() { S.calc.freq=+document.getElementById('f-freq').value||1; saveCalcLocal(); scheduleAutoSave(); renderCalcBar(); }
+function addRow() { S.calc.rows.push({ category:'', site:'', mfr:'', etype:'', model:'', serial:'', loc:'' }); saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function delRow(i) { S.calc.rows.splice(i,1); saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function onCatChange(i,val) { S.calc.rows[i].category=val; saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function onTxt(i,field,val) { S.calc.rows[i][field]=val; saveCalcLocal(); scheduleAutoSave(); }
+function clearAll() { if(!confirm('Clear all equipment rows?')) return; S.calc.rows=[]; saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
 function saveQuote() { saveQuoteToDB(); }
 
 // ============================================================
@@ -1498,6 +1545,7 @@ function confirmImport() {
   if (!toAdd.length) return;
   S.calc.rows.push(...toAdd);
   saveCalcLocal();
+  scheduleAutoSave();
   renderEquipTable();
   renderCalcBar();
   closeImportModal();
