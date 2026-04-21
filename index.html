@@ -1610,7 +1610,7 @@ async function init() {
   switchTab('calc');
 
   // Logo → silent reset to blank builder
-  const logo = document.querySelector('.nav-logo');
+  const logo = document.querySelector('.nav-logo-img');
   if (logo) { logo.style.cursor = 'pointer'; logo.title = 'New Quote'; logo.addEventListener('click', resetToNew); }
 
   // Realtime — keep history live as others save
