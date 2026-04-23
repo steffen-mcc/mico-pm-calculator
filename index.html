@@ -800,8 +800,6 @@ let allQuotesMap = {}; // id → quote, avoids passing JSON through onclick attr
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 
-function saveCalcLocal() { /* no-op: localStorage removed, autosave goes direct to Supabase */ }
-function loadCalcLocal() { /* no-op: localStorage removed, startup loads from Supabase */ }
 
 // ============================================================
 // SUPABASE — ADMIN
@@ -863,7 +861,7 @@ async function saveQuoteToDB(silent=false) {
     return;
   }
   // Assign a permanent ID on first save — reused on every subsequent upsert
-  if (!S.calc.id) { S.calc.id = crypto.randomUUID(); saveCalcLocal(); }
+  if (!S.calc.id) { S.calc.id = crypto.randomUUID(); }
   const t = calcTotals();
   const { error } = await sb.from('pm_quotes').upsert({
     id: S.calc.id,
@@ -940,7 +938,6 @@ function loadQuoteIntoCalc(q) {
   S.calc.date     = q.proposal_date || new Date().toISOString().slice(0,10);
   S.calc.freq     = q.frequency || 4;
   S.calc.rows     = Array.isArray(q.equipment_rows) ? q.equipment_rows : [];
-  saveCalcLocal();
   renderCalc();
   switchTab('calc');
   toast('Loaded: ' + q.customer_name, 'success');
@@ -1205,15 +1202,14 @@ function updateCustomer() {
   S.calc.custName = document.getElementById('f-custName').value;
   S.calc.notes    = document.getElementById('f-notes').value;
   S.calc.date     = document.getElementById('f-date').value;
-  saveCalcLocal();
   scheduleAutoSave();
 }
-function updateFrequency() { S.calc.freq=+document.getElementById('f-freq').value||1; saveCalcLocal(); scheduleAutoSave(); renderCalcBar(); }
-function addRow() { S.calc.rows.push({ category:'', site:'', mfr:'', etype:'', model:'', serial:'', loc:'' }); saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
-function delRow(i) { S.calc.rows.splice(i,1); saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
-function onCatChange(i,val) { S.calc.rows[i].category=val; saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
-function onTxt(i,field,val) { S.calc.rows[i][field]=val; saveCalcLocal(); scheduleAutoSave(); }
-function clearAll() { if(!confirm('Clear all equipment rows?')) return; S.calc.rows=[]; saveCalcLocal(); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function updateFrequency() { S.calc.freq=+document.getElementById('f-freq').value||1; scheduleAutoSave(); renderCalcBar(); }
+function addRow() { S.calc.rows.push({ category:'', site:'', mfr:'', etype:'', model:'', serial:'', loc:'' }); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function delRow(i) { S.calc.rows.splice(i,1); scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function onCatChange(i,val) { S.calc.rows[i].category=val; scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
+function onTxt(i,field,val) { S.calc.rows[i][field]=val; scheduleAutoSave(); }
+function clearAll() { if(!confirm('Clear all equipment rows?')) return; S.calc.rows=[]; scheduleAutoSave(); renderEquipTable(); renderCalcBar(); }
 function saveQuote() { saveQuoteToDB(); }
 
 // ============================================================
@@ -1282,7 +1278,6 @@ function setConnected(ok) {
   el.querySelector('.conn-lbl').textContent = ok ? 'Connected' : 'Disconnected';
 }
 
-let _toastTimer;
 function toast(msg, type='success') {
   const wrap=document.getElementById('toast-wrap');
   const el=document.createElement('div');
@@ -1575,7 +1570,6 @@ function confirmImport() {
   }));
   if (!toAdd.length) return;
   S.calc.rows.push(...toAdd);
-  saveCalcLocal();
   scheduleAutoSave();
   renderEquipTable();
   renderCalcBar();
